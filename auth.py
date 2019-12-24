@@ -1,8 +1,9 @@
 from flask import Blueprint , render_template , redirect , url_for , request , flash 
 from werkzeug.security import generate_password_hash , check_password_hash
 from .app import db
-from flask_login import login_required , current_user , login_user
+from flask_login import login_required , current_user , login_user ,logout_user
 from .models import User
+import re
 auth = Blueprint('auth',__name__)
 
 @auth.route('/login',methods=['POST','GET'])
@@ -13,8 +14,8 @@ def login():
 
         user = User.query.filter_by(email = email).first()
         if not user or not check_password_hash(user.password, password):
-            flash ('Please check your login details')
-            return redirect(url_for('auth.login'))
+            error = 'Проверьте введенные данные'
+            return render_template('login.html', error = error)
         
         login_user(user)
         return redirect(url_for('main.profile'))
@@ -28,19 +29,21 @@ def signup():
         email = request.form['email']
         password = request.form['password']
         name = request.form['name']
-
         user = User.query.filter_by(email=email).first()
 
         if user:
-            flash('Email adress already exists')
-            return redirect(url_for('auth.signup'))
+            error = 'Почта уже занята'
+            return render_template('signup.html', error = error)
+        if re.match(r'\S{3,30}',password) and re.match(r'\w+\@\w{2,10}\.\w{2,10}',email) and re.match(r'\S{3,30}',name):
+            new_user = User(email=email , name= name , password=generate_password_hash(password,method='sha256'),role = 3)
+            
+            db.session.add(new_user)
+            db.session.commit()
 
-        new_user = User(email=email , name= name , password=generate_password_hash(password,method='sha256'))
-
-        db.session.add(new_user)
-        db.session.commit()
-
-        return redirect(url_for('main.profile'))
+            return redirect(url_for('main.profile'))
+        else:
+            error = 'Данные введены некорректно'
+            return render_template('signup.html', error = error)
     return render_template('signup.html')
 
 @auth.route('/logout')
